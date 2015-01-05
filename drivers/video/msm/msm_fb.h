@@ -37,6 +37,7 @@
 #include <linux/fb.h>
 #include <linux/list.h>
 #include <linux/types.h>
+#include <linux/switch.h>
 #include <linux/msm_mdp.h>
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #undef CONFIG_HAS_EARLYSUSPEND
@@ -178,6 +179,7 @@ struct msm_fb_data_type {
 	struct list_head writeback_busy_queue;
 	struct list_head writeback_free_queue;
 	struct list_head writeback_register_queue;
+	struct switch_dev writeback_sdev;
 	wait_queue_head_t wait_q;
 	struct ion_client *iclient;
 	unsigned long display_iova;
@@ -208,6 +210,7 @@ struct msm_fb_data_type {
 	void *msm_fb_backup;
 	boolean panel_driver_on;
 	uint32 sec_mapped;
+	uint32 sec_active;
 	uint32 max_map_size;
 };
 struct msm_fb_backup_type {

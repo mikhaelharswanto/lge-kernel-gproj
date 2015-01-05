@@ -112,6 +112,12 @@ enum {
 #define MDP4_PANEL_WRITEBACK		BIT(6)
 
 enum {
+	OVERLAY_BLT_SWITCH_TG_ON,
+	OVERLAY_BLT_SWITCH_TG_OFF,
+	OVERLAY_BLT_ALWAYS_ON
+};
+
+enum {
 	OVERLAY_MODE_NONE,
 	OVERLAY_MODE_BLT
 };
@@ -811,7 +817,7 @@ void mdp4_dsi_video_wait4vsync(int cndx);
 void mdp4_mixer_reset(int mixer);
 void mdp4_dsi_cmd_pipe_queue(int cndx, struct mdp4_overlay_pipe *pipe);
 void mdp4_dsi_video_pipe_queue(int cndx, struct mdp4_overlay_pipe *pipe);
-int mdp4_dsi_video_pipe_commit(int cndx, int wait, u32 *release_busy);
+int mdp4_dsi_video_pipe_commit(int cndx, int wait);
 int mdp4_dsi_cmd_pipe_commit(int cndx, int wait, u32 *release_busy);
 void mdp4_dsi_cmd_vsync_ctrl(struct fb_info *info, int enable);
 void mdp4_dsi_video_vsync_ctrl(struct fb_info *info, int enable);
