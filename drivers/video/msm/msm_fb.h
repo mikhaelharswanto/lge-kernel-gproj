@@ -39,9 +39,6 @@
 #include <linux/types.h>
 #include <linux/switch.h>
 #include <linux/msm_mdp.h>
-#ifdef CONFIG_HAS_EARLYSUSPEND
-#undef CONFIG_HAS_EARLYSUSPEND
-#endif
 
 #include "msm_fb_panel.h"
 #include "mdp.h"
@@ -49,6 +46,8 @@
 #define MSM_FB_DEFAULT_PAGE_SIZE 2
 #define MFD_KEY  0x11161126
 #define MSM_FB_MAX_DEV_LIST 32
+/* Disable EARLYSUSPEND for mdp driver */
+#define DISABLE_EARLY_SUSPEND
 
 struct disp_info_type_suspend {
 	boolean op_enable;
@@ -81,8 +80,9 @@ struct msm_fb_data_type {
 	DISP_TARGET dest;
 	struct fb_info *fbi;
 
-	struct delayed_work backlight_worker;
+	struct device *dev;
 	boolean op_enable;
+	struct delayed_work backlight_worker;
 	uint32 fb_imgType;
 	boolean sw_currently_refreshing;
 	boolean sw_refreshing_enable;
@@ -139,6 +139,8 @@ struct msm_fb_data_type {
 	int (*stop_histogram) (struct fb_info *info, uint32_t block);
 	void (*vsync_ctrl) (int enable);
 	void (*vsync_init) (int cndx);
+	void (*update_panel_info)(struct msm_fb_data_type *mfd);
+	bool (*is_panel_ready)(void);
 	void *vsync_show;
 	void *cursor_buf;
 	void *cursor_buf_phys;
@@ -160,11 +162,13 @@ struct msm_fb_data_type {
 	struct dentry *sub_dir;
 #endif
 
+#ifndef DISABLE_EARLY_SUSPEND
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	struct early_suspend early_suspend;
 #ifdef CONFIG_FB_MSM_MDDI
 	struct early_suspend mddi_early_suspend;
 	struct early_suspend mddi_ext_early_suspend;
+#endif
 #endif
 #endif
 	u32 mdp_fb_page_protection;
@@ -194,7 +198,6 @@ struct msm_fb_data_type {
 	bool writeback_initialized;
 	int cont_splash_done;
 	void *cpu_pm_hdl;
-	int vsync_sysfs_created;
 	u32 acq_fen_cnt;
 	struct sync_fence *acq_fen[MDP_MAX_FENCE_FD];
 	struct sw_sync_timeline *timeline;
@@ -209,9 +212,22 @@ struct msm_fb_data_type {
 	int wake_commit_thread;
 	void *msm_fb_backup;
 	boolean panel_driver_on;
+	int vsync_sysfs_created;
+	void *copy_splash_buf;
+	unsigned char *copy_splash_phys;
 	uint32 sec_mapped;
 	uint32 sec_active;
 	uint32 max_map_size;
+#ifdef CONFIG_CABC_DIMMING_SWITCH
+	struct workqueue_struct *dimming_wq;
+	struct work_struct dimming_work;
+	struct timer_list dimming_update_timer;
+#endif
+#ifdef CONFIG_SRE_CONTROL
+	struct workqueue_struct *sre_wq;
+	struct work_struct sre_work;
+	struct timer_list sre_update_timer;
+#endif
 };
 struct msm_fb_backup_type {
 	struct fb_info info;
