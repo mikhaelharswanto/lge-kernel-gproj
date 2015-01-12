@@ -177,7 +177,7 @@ static void mdp4_dsi_video_blt_ov_update(struct mdp4_overlay_pipe *pipe);
 static void mdp4_dsi_video_wait4dmap(int cndx);
 static void mdp4_dsi_video_wait4ov(int cndx);
 
-int mdp4_dsi_video_pipe_commit(int cndx, int wait)
+int mdp4_dsi_video_pipe_commit(int cndx, int wait, u32 *release_busy)
 {
 
 	int  i, undx;
@@ -296,6 +296,11 @@ int mdp4_dsi_video_pipe_commit(int cndx, int wait)
 	mdp4_stat.overlay_commit[pipe->mixer_num]++;
 
 	if (wait) {
+		if (release_busy) {
+			msm_fb_release_busy(vctrl->mfd);
+			*release_busy = false;
+			mutex_unlock(&vctrl->mfd->dma->ov_mutex);
+		}
 		if (pipe->ov_blt_addr)
 			mdp4_dsi_video_wait4ov(0);
 		else
@@ -779,40 +784,11 @@ int mdp4_dsi_video_off(struct platform_device *pdev)
 	int mixer = 0;
 	int undx, need_wait = 0;
 
-#if defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_WXGA_PT) \
-       || defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_FHD_INVERSE_PT) \
-       || defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_FHD_INVERSE_PT_PANEL)
-	int retry_cnt = 0;
-#endif
-
 	mfd = (struct msm_fb_data_type *)platform_get_drvdata(pdev);
 
 	mutex_lock(&mfd->dma->ov_mutex);
 	vctrl = &vsync_ctrl_db[cndx];
 	pipe = vctrl->base_pipe;
-
-#if defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_WXGA_PT) \
-       || defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_FHD_INVERSE_PT) \
-       || defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_FHD_INVERSE_PT_PANEL)
-	do {
-		ret = mipi_lgit_lcd_off(pdev);
-
-		if (ret < 0) {
-			panel_next_off(pdev);
-			msleep(2);
-			panel_next_on(pdev);
-			msleep(5);
-			retry_cnt++;
-		}
-		else
-		{
-			// if upper routine is successed, need to initialize ret variable.
-			ret = 0;
-			break;
-		}
-	} while(retry_cnt < 10);
-	printk(KERN_INFO "[LCD][DEBUG] %s : mipi_lgit_lcd_off retry_cnt = %d\n", __func__, retry_cnt);
-#endif
 
 	mdp4_dsi_video_wait4vsync(cndx);
 
@@ -1116,33 +1092,6 @@ void mdp4_overlay0_done_dsi_video(int cndx)
 	spin_unlock(&vctrl->spin_lock);
 }
 
-#if 0 //FIXME block to build error -- deleted dsi_pipe in PreCS
-#if defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_FHD_PT) ||\
-	defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_FHD_INVERSE_PT)
-	// fixed the underrun for 1920 * 1080 video play at the full hd lcd.
-static void mdp4_overlay_dsi_video_prefill(struct msm_fb_data_type *mfd) 
-{ 
-	unsigned long flag; 
-
-	if (dsi_pipe->ov_blt_addr) {
-		mdp4_overlay_dsi_video_dma_busy_wait(mfd); 
-		mdp4_dsi_video_blt_ov_update(dsi_pipe);
-		dsi_pipe->ov_cnt++; 
-		spin_lock_irqsave(&mdp_spin_lock, flag); 
-		outp32(MDP_INTR_CLEAR, INTR_OVERLAY0_DONE); 
-		mdp_intr_mask |= INTR_OVERLAY0_DONE; 
-		outp32(MDP_INTR_ENABLE, mdp_intr_mask); 
-		mdp_enable_irq(MDP_OVERLAY0_TERM); 
-		mfd->dma->busy = TRUE;
-		mb();	/* make sure all registers updated */ 
-		spin_unlock_irqrestore(&mdp_spin_lock, flag); 
-		outpdw(MDP_BASE + 0x0004, 0); /* kickoff overlay engine */ 
-		mdp4_stat.kickoff_ov0++; 
-		mb(); 
-		} 
-} 
-#endif
-#endif
 /*
  * make sure the MIPI_DSI_WRITEBACK_SIZE defined at boardfile
  * has enough space h * w * 3 * 2
@@ -1282,7 +1231,7 @@ void mdp4_dsi_video_overlay(struct msm_fb_data_type *mfd)
 
 	mdp4_overlay_mdp_perf_upd(mfd, 1);
 
-	cnt = mdp4_dsi_video_pipe_commit(cndx, 0);
+	cnt = mdp4_dsi_video_pipe_commit(cndx, 1, NULL);
 	if (cnt >= 0) {
 		if (pipe->ov_blt_addr)
 			mdp4_dsi_video_wait4ov(cndx);
